@@ -62,7 +62,7 @@ def rw_extremes(data, order):
 
 
 # Function to detect horizontal lines
-def detect_horizontal_lines(points, tolerance=0.02):
+def detect_horizontal_lines(points, tolerance=0.005):
     horizontal_lines = []
     for i in range(len(points)):
         for j in range(i + 1, len(points)):
@@ -74,7 +74,7 @@ def detect_horizontal_lines(points, tolerance=0.02):
 
 
 # Function to plot the window
-def plot_window(df, start, order, window_length):
+def plot_window(df, start, order, window_length, tolerance):
     plt.figure(figsize=(10, 5))
     window = df.iloc[start:start + window_length]
     data = window["close"].to_numpy()
@@ -84,8 +84,8 @@ def plot_window(df, start, order, window_length):
     tops, bottoms = rw_extremes(data, order)
 
     # Detect horizontal lines for triple tops and bottoms
-    triple_tops = detect_horizontal_lines(tops)
-    triple_bottoms = detect_horizontal_lines(bottoms)
+    triple_tops = detect_horizontal_lines(tops, tolerance)
+    triple_bottoms = detect_horizontal_lines(bottoms, tolerance)
 
     # Plot the closing prices
     plt.plot(idx, data, label="Close")
@@ -99,10 +99,10 @@ def plot_window(df, start, order, window_length):
 
     # Plot horizontal lines for triple tops and bottoms
     for top in triple_tops:
-        plt.axhline(y=top, color="r", linestyle="--", label="Triple Top")
+        plt.axhline(y=top, color="g", linestyle="--", label="Triple Top")
 
     for bottom in triple_bottoms:
-        plt.axhline(y=bottom, color="g", linestyle="--", label="Triple Bottom")
+        plt.axhline(y=bottom, color="r", linestyle="--", label="Triple Bottom")
 
     plt.title(f"{window_length}-Day Window of Closing Prices")
     plt.xlabel("Date")
@@ -132,10 +132,62 @@ df = load_data(ticker)
 
 # User input for window length and order
 window_length = st.selectbox("Select Window Length", [252, 504])
-order = st.selectbox("Select Order", [1, 2, 3, 4])
+order = st.selectbox("Select Order", [1, 2, 3, 4, 5])
 
-# Buttons to update the plot
-start_index = st.slider("Start Index", 0, len(df) - window_length, 0)
+# Initialize session state
+if "start_index" not in st.session_state:
+    st.session_state.start_index = 0
 
-# Plot the window
-plot_window(df, start_index, order, window_length)
+# Input for tolerance value
+tolerance_input = st.text_input("Tolerance (0 to 1)", "0.005")
+
+# Validate tolerance input
+try:
+    tolerance = float(tolerance_input.replace(",", "."))
+    if tolerance < 0 or tolerance > 1:
+        st.error("Tolerance must be a number between 0 and 1.")
+    else:
+        # Plot the window
+        plot_window(df, st.session_state.start_index, order, window_length, tolerance)
+except ValueError:
+    st.error("Invalid input. Please enter a number between 0 and 1.")
+
+
+# Function to update the plot by days
+def update_plot_by_days(change):
+    st.session_state.start_index += change
+    if st.session_state.start_index < 0:
+        st.session_state.start_index = 0
+    elif st.session_state.start_index > len(df) - window_length:
+        st.session_state.start_index = len(df) - window_length
+
+
+# Function to update the plot by months (30 days)
+def update_plot_by_months(change):
+    st.session_state.start_index += change * 30
+    if st.session_state.start_index < 0:
+        st.session_state.start_index = 0
+    elif st.session_state.start_index > len(df) - window_length:
+        st.session_state.start_index = len(df) - window_length
+
+
+# Buttons to navigate by days
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    if st.button("Previous Day"):
+        update_plot_by_days(-1)
+with col2:
+    if st.button("Next Day"):
+        update_plot_by_days(1)
+
+# Buttons to navigate by months
+with col3:
+    if st.button("Previous Month"):
+        update_plot_by_months(-1)
+with col4:
+    if st.button("Next Month"):
+        update_plot_by_months(1)
+
+# Slider to set start index
+start_index = st.slider("Start Index", 0, len(df) - window_length, st.session_state.start_index)
+st.session_state.start_index = start_index
