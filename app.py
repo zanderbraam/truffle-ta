@@ -13,6 +13,12 @@ def load_data(ticker):
     return df
 
 
+# Function to read ABOUT.md file
+def read_about():
+    with open('ABOUT.md', 'r') as file:
+        return file.read()
+
+
 # Function to check for local tops
 def rw_top(data, curr_index, order):
     if curr_index < order * 2 + 1:
@@ -62,57 +68,72 @@ def rw_extremes(data, order):
 
 
 # Function to detect horizontal lines
-def detect_horizontal_lines(points, tolerance=0.005):
+def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False):
     horizontal_lines = []
-    for i in range(len(points)):
-        for j in range(i + 1, len(points)):
-            for k in range(j + 1, len(points)):
-                if (abs(points[i][2] - points[j][2]) / points[i][2] < tolerance and
-                        abs(points[i][2] - points[k][2]) / points[i][2] < tolerance):
-                    horizontal_lines.append(points[i][2])
+    if consecutive_only:
+        for i in range(len(points) - 2):
+            if (abs(points[i][2] - points[i + 1][2]) / points[i][2] < tolerance and
+                    abs(points[i][2] - points[i + 2][2]) / points[i][2] < tolerance):
+                horizontal_lines.append(points[i][2])
+    else:
+        for i in range(len(points)):
+            for j in range(i + 1, len(points)):
+                for k in range(j + 1, len(points)):
+                    if (abs(points[i][2] - points[j][2]) / points[i][2] < tolerance and
+                            abs(points[i][2] - points[k][2]) / points[i][2] < tolerance):
+                        horizontal_lines.append(points[i][2])
     return horizontal_lines
 
 
 # Function to plot the window
-def plot_window(df, start, order, window_length, tolerance):
-    plt.figure(figsize=(10, 5))
+def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price):
+    fig, ax = plt.subplots(figsize=(10, 5))
     window = df.iloc[start:start + window_length]
-    data = window["close"].to_numpy()
+
+    if log_price:
+        data = np.log(window["close"].to_numpy())
+    else:
+        data = window["close"].to_numpy()
+
     idx = window.index
 
     # Detect tops and bottoms
     tops, bottoms = rw_extremes(data, order)
 
     # Detect horizontal lines for triple tops and bottoms
-    triple_tops = detect_horizontal_lines(tops, tolerance)
-    triple_bottoms = detect_horizontal_lines(bottoms, tolerance)
+    triple_tops = detect_horizontal_lines(tops, tolerance, consecutive_only)
+    triple_bottoms = detect_horizontal_lines(bottoms, tolerance, consecutive_only)
 
     # Plot the closing prices
-    plt.plot(idx, data, label="Close")
+    ax.plot(idx, data, label="Close (Log)" if log_price else "Close")
 
     # Plot detected tops and bottoms
     for top in tops:
-        plt.plot(idx[top[1]], top[2], marker="o", color="green")
+        ax.plot(idx[top[1]], top[2], marker="o", color="green")
 
     for bottom in bottoms:
-        plt.plot(idx[bottom[1]], bottom[2], marker="o", color="red")
+        ax.plot(idx[bottom[1]], bottom[2], marker="o", color="red")
 
     # Plot horizontal lines for triple tops and bottoms
     for top in triple_tops:
-        plt.axhline(y=top, color="g", linestyle="--", label="Triple Top")
+        ax.axhline(y=top, color="g", linestyle="--", label="Triple Top")
 
     for bottom in triple_bottoms:
-        plt.axhline(y=bottom, color="r", linestyle="--", label="Triple Bottom")
+        ax.axhline(y=bottom, color="r", linestyle="--", label="Triple Bottom")
 
-    plt.title(f"{window_length}-Day Window of Closing Prices")
-    plt.xlabel("Date")
-    plt.ylabel("Closing Price")
-    plt.grid(True)
-    st.pyplot(plt)
+    ax.set_title(f"{window_length}-Day Window of {'Log ' if log_price else ''}Closing Prices")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Log Closing Price" if log_price else "Closing Price")
+    ax.grid(True)
+    st.pyplot(fig, clear_figure=True)
 
 
 # Streamlit app
-st.title("Stock Price Analysis")
+st.title("Stock Price Technical Analysis App")
+
+# Display ABOUT.md content
+about_content = read_about()
+st.markdown(about_content)
 
 # Dropdown to select ticker
 ticker = st.selectbox("Select Ticker", [
@@ -132,7 +153,7 @@ df = load_data(ticker)
 
 # User input for window length and order
 window_length = st.selectbox("Select Window Length", [252, 504])
-order = st.selectbox("Select Order", [1, 2, 3, 4, 5])
+order = st.selectbox("Select Order", [1, 2, 3, 4, 5, 6, 7])
 
 # Initialize session state
 if "start_index" not in st.session_state:
@@ -141,6 +162,12 @@ if "start_index" not in st.session_state:
 # Input for tolerance value
 tolerance_input = st.text_input("Tolerance (0 to 1)", "0.005")
 
+# Input for consecutive only parameter
+consecutive_only = st.checkbox("Consecutive Only", value=False)
+
+# Input for log price parameter
+log_price = st.checkbox("Use Log Price", value=False)
+
 # Validate tolerance input
 try:
     tolerance = float(tolerance_input.replace(",", "."))
@@ -148,7 +175,7 @@ try:
         st.error("Tolerance must be a number between 0 and 1.")
     else:
         # Plot the window
-        plot_window(df, st.session_state.start_index, order, window_length, tolerance)
+        plot_window(df, st.session_state.start_index, order, window_length, tolerance, consecutive_only, log_price)
 except ValueError:
     st.error("Invalid input. Please enter a number between 0 and 1.")
 
