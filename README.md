@@ -1,5 +1,5 @@
 # truffle-ta
-Streamlit App to Visualise TA Lines
+Streamlit App to Visualise TA Horizontal Support and Resistance Lines
 
 ## Usage
 
