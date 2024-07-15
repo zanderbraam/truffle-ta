@@ -74,20 +74,26 @@ def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False):
         for i in range(len(points) - 2):
             if (abs(points[i][2] - points[i + 1][2]) / points[i][2] < tolerance and
                     abs(points[i][2] - points[i + 2][2]) / points[i][2] < tolerance):
-                horizontal_lines.append(points[i][2])
+                horizontal_lines.append(points[i + 2][2])
     else:
         for i in range(len(points)):
             for j in range(i + 1, len(points)):
                 for k in range(j + 1, len(points)):
                     if (abs(points[i][2] - points[j][2]) / points[i][2] < tolerance and
                             abs(points[i][2] - points[k][2]) / points[i][2] < tolerance):
-                        horizontal_lines.append(points[i][2])
+                        horizontal_lines.append(points[k][2])
     return horizontal_lines
 
 
 # Function to check if a line is crossed after a certain index
-def is_line_crossed(data, line, start_index):
-    return any(data[start_index:] > line) or any(data[start_index:] < line)
+def is_line_crossed_after_point(data, line, start_index, check_greater=True):
+    if check_greater:
+        cross = any(data[start_index + 1:] > line)
+    else:
+        cross = any(data[start_index + 1:] < line)
+
+    return cross
+
 
 # Function to plot the window
 def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price, ema_toggle, ema_span, invalidate_lines):
@@ -120,16 +126,16 @@ def plot_window(df, start, order, window_length, tolerance, consecutive_only, lo
 
     # Plot horizontal lines for triple tops and bottoms
     for top in triple_tops:
-        last_top_index = max([t[1] for t in tops if t[2] == top])
-        if invalidate_lines and any(data[last_top_index:] > top):
+        last_top_index = max([t[0] for t in tops if t[2] == top])
+        if invalidate_lines and is_line_crossed_after_point(data, top, last_top_index, check_greater=True):
             line_color = "grey"
         else:
             line_color = "green"
         ax.axhline(y=top, color=line_color, linestyle="--", label="Triple Top")
 
     for bottom in triple_bottoms:
-        last_bottom_index = max([b[1] for b in bottoms if b[2] == bottom])
-        if invalidate_lines and any(data[last_bottom_index:] < bottom):
+        last_bottom_index = max([b[0] for b in bottoms if b[2] == bottom])
+        if invalidate_lines and is_line_crossed_after_point(data, bottom, last_bottom_index, check_greater=False):
             line_color = "grey"
         else:
             line_color = "red"
