@@ -1,7 +1,8 @@
 ## Overview
 
 This app allows users to visualize stock price data and detect local tops and bottoms within a specified window. 
-Users can select different tickers, window lengths, and order for detecting tops and bottoms.
+Users can select different tickers, window lengths, and order for detecting tops and bottoms. The app also supports 
+overlaying an Exponential Moving Average (EMA) and invalidating crossed lines for triple tops and bottoms.
 
 ## Methodology
 
@@ -21,6 +22,8 @@ The app identifies local tops and bottoms in the stock price data using a rollin
 - **Tolerance**: A value between 0 and 1 that determines the acceptable difference between the prices to consider them as forming a horizontal line.
 - **Consecutive Only**: When set to True, horizontal lines are only drawn if three consecutive tops or bottoms form a horizontal line. When False, lines are drawn if any three tops or bottoms in the window form a horizontal line.
 - **Log Price**: A boolean parameter that, when set to True, uses the logarithm of the closing prices instead of the raw closing prices for all calculations and plots.
+- **Overlay EMA**: A boolean parameter that, when set to True, overlays an Exponential Moving Average (EMA) over the window of data. Users can specify the EMA span.
+- **Invalidate Crossed Lines**: A boolean parameter that, when set to True, changes the color of the lines for triple tops and bottoms to grey if they are crossed by the price within the window, indicating they are no longer valid.
 
 ## Usage
 
@@ -29,7 +32,11 @@ The app identifies local tops and bottoms in the stock price data using a rollin
 3. Enter a tolerance value between 0 and 1.
 4. Set the Consecutive Only parameter as desired.
 5. Set the Log Price parameter as desired.
-6. Use the navigation buttons to move through the data by day or month.
-7. Adjust the start index using the slider if needed.
+6. Set the Overlay EMA parameter and specify the EMA span if needed.
+7. Set the Invalidate Crossed Lines parameter as desired.
+8. Use the navigation buttons to move through the data by day or month.
+9. Adjust the start index using the slider if needed.
 
-The plot will display the closing prices with detected tops and bottoms, along with any identified triple tops and bottoms.
+The plot will display the closing prices with detected tops and bottoms, along with any identified triple tops and 
+bottoms. If the EMA overlay is enabled, it will also be displayed. If the Invalidate Crossed Lines parameter is enabled,
+lines for triple tops and bottoms will turn grey if crossed within the window.

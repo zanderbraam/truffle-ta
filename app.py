@@ -85,8 +85,12 @@ def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False):
     return horizontal_lines
 
 
+# Function to check if a line is crossed after a certain index
+def is_line_crossed(data, line, start_index):
+    return any(data[start_index:] > line) or any(data[start_index:] < line)
+
 # Function to plot the window
-def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price):
+def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price, ema_toggle, ema_span, invalidate_lines):
     fig, ax = plt.subplots(figsize=(10, 5))
     window = df.iloc[start:start + window_length]
 
@@ -116,10 +120,27 @@ def plot_window(df, start, order, window_length, tolerance, consecutive_only, lo
 
     # Plot horizontal lines for triple tops and bottoms
     for top in triple_tops:
-        ax.axhline(y=top, color="g", linestyle="--", label="Triple Top")
+        last_top_index = max([t[1] for t in tops if t[2] == top])
+        if invalidate_lines and any(data[last_top_index:] > top):
+            line_color = "grey"
+        else:
+            line_color = "green"
+        ax.axhline(y=top, color=line_color, linestyle="--", label="Triple Top")
 
     for bottom in triple_bottoms:
-        ax.axhline(y=bottom, color="r", linestyle="--", label="Triple Bottom")
+        last_bottom_index = max([b[1] for b in bottoms if b[2] == bottom])
+        if invalidate_lines and any(data[last_bottom_index:] < bottom):
+            line_color = "grey"
+        else:
+            line_color = "red"
+        ax.axhline(y=bottom, color=line_color, linestyle="--", label="Triple Bottom")
+
+    # Overlay EMA if toggle is enabled
+    if ema_toggle:
+        ema = window['close'].ewm(span=ema_span).mean()
+        if log_price:
+            ema = np.log(ema)
+        ax.plot(idx, ema, label=f"EMA (span={ema_span})", linestyle='--')
 
     ax.set_title(f"{window_length}-Day Window of {'Log ' if log_price else ''}Closing Prices")
     ax.set_xlabel("Date")
@@ -168,6 +189,23 @@ consecutive_only = st.checkbox("Consecutive Only", value=False)
 # Input for log price parameter
 log_price = st.checkbox("Use Log Price", value=False)
 
+# Toggle for EMA
+ema_toggle = st.checkbox("Overlay EMA", value=False)
+ema_span = None
+
+if ema_toggle:
+    ema_span_input = st.text_input("EMA Span (positive integer)", "20")
+    try:
+        ema_span = int(ema_span_input)
+        if ema_span <= 0:
+            st.error("EMA span must be a positive integer.")
+            ema_span = None
+    except ValueError:
+        st.error("Invalid input. Please enter a positive integer.")
+
+# Toggle for invalidating crossed lines
+invalidate_lines = st.checkbox("Invalidate Crossed Lines", value=False)
+
 # Validate tolerance input
 try:
     tolerance = float(tolerance_input.replace(",", "."))
@@ -175,7 +213,8 @@ try:
         st.error("Tolerance must be a number between 0 and 1.")
     else:
         # Plot the window
-        plot_window(df, st.session_state.start_index, order, window_length, tolerance, consecutive_only, log_price)
+        plot_window(df, st.session_state.start_index, order, window_length, tolerance, consecutive_only, log_price,
+                    ema_toggle, ema_span, invalidate_lines)
 except ValueError:
     st.error("Invalid input. Please enter a number between 0 and 1.")
 
