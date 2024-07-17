@@ -8,9 +8,26 @@ import matplotlib.pyplot as plt
 @st.cache_data
 def load_data(ticker):
     file_path = f'data/{ticker.lower()}.csv'
-    df = pd.read_csv(file_path, parse_dates=['Date'])
+    df = pd.read_csv(file_path)
     df.set_index('Date', inplace=True)
+    df.index = pd.to_datetime(df.index)
     return df
+
+
+# Initialize testing_df with necessary columns
+def initialize_testing_df(df):
+    testing_df = df[['close']].copy()
+    testing_df['tops'] = pd.Series(dtype='object')
+    testing_df['bottoms'] = pd.Series(dtype='object')
+    testing_df['support_levels'] = pd.Series(dtype='object')
+    testing_df['resistance_levels'] = pd.Series(dtype='object')
+    testing_df['support_breaks'] = False
+    testing_df['resistance_breaks'] = False
+    testing_df['true_support_breaks'] = False
+    testing_df['false_support_breaks'] = False
+    testing_df['true_resistance_breaks'] = False
+    testing_df['false_resistance_breaks'] = False
+    return testing_df
 
 
 # Function to read ABOUT.md file
@@ -85,6 +102,83 @@ def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False):
     return horizontal_lines
 
 
+def is_true_breakout(prices, level, index, threshold_days=5, threshold_percentage=0.01, is_top=True):
+    future_index = index + threshold_days
+    if future_index >= len(prices):
+        return False
+
+    future_price = prices.iloc[future_index]
+    if is_top:
+        return future_price > level * (1 + threshold_percentage)
+    else:
+        return future_price < level * (1 - threshold_percentage)
+
+
+def walk_forward_test(prices, window_size=252, order=5, threshold_days=5, threshold_percentage=0.01,
+                      tolerance=0.005, consecutive_only=False, log_price=False, invalidate_lines=False):
+
+    close_prices = prices['close'].to_numpy()
+    if log_price:
+        close_prices = np.log(close_prices)
+        testing_df = initialize_testing_df(np.log(prices))
+    else:
+        testing_df = initialize_testing_df(prices)
+
+    # Keep track of invalidated levels
+    invalidated_top_levels = set()
+    invalidated_bottom_levels = set()
+
+    for i in range(len(prices) - window_size):
+        window_data = close_prices[i:i + window_size]
+        tops, bottoms = rw_extremes(window_data, order)
+
+        # Extract only the float values for tops and bottoms and convert to Python float
+        tops_values = [float(top[2]) for top in tops]
+        bottoms_values = [float(bottom[2]) for bottom in bottoms]
+
+        top_levels = detect_horizontal_lines(tops, tolerance, consecutive_only)
+        bottom_levels = detect_horizontal_lines(bottoms, tolerance, consecutive_only)
+
+        top_level_values = [float(top) for top in top_levels]
+        bottom_level_values = [float(bottom) for bottom in bottom_levels]
+
+        # Update testing_df with tops and bottoms
+        testing_df.at[prices.index[i + window_size - 1], 'tops'] = tops_values
+        testing_df.at[prices.index[i + window_size - 1], 'bottoms'] = bottoms_values
+
+        # Update support and resistance levels
+        testing_df.at[prices.index[i + window_size - 1], 'support_levels'] = bottom_level_values
+        testing_df.at[prices.index[i + window_size - 1], 'resistance_levels'] = top_level_values
+
+        # Check for breaks and update columns
+        current_price = close_prices[i + window_size - 1]
+        for level in top_levels:
+            if current_price > level and level not in invalidated_top_levels:
+                is_true = is_true_breakout(prices['close'], level, i + window_size - 1, threshold_days,
+                                           threshold_percentage, is_top=True)
+                testing_df.at[prices.index[i + window_size - 1], 'resistance_breaks'] = True
+                if is_true:
+                    testing_df.at[prices.index[i + window_size - 1], 'true_resistance_breaks'] = True
+                else:
+                    testing_df.at[prices.index[i + window_size - 1], 'false_resistance_breaks'] = True
+                if invalidate_lines:
+                    invalidated_top_levels.add(level)
+
+        for level in bottom_levels:
+            if current_price < level and level not in invalidated_bottom_levels:
+                is_true = is_true_breakout(prices['close'], level, i + window_size - 1, threshold_days,
+                                           threshold_percentage, is_top=False)
+                testing_df.at[prices.index[i + window_size - 1], 'support_breaks'] = True
+                if is_true:
+                    testing_df.at[prices.index[i + window_size - 1], 'true_support_breaks'] = True
+                else:
+                    testing_df.at[prices.index[i + window_size - 1], 'false_support_breaks'] = True
+                if invalidate_lines:
+                    invalidated_bottom_levels.add(level)
+
+    return testing_df
+
+
 # Function to check if a line is crossed after a certain index
 def is_line_crossed_after_point(data, line, start_index, check_greater=True):
     if check_greater:
@@ -93,6 +187,53 @@ def is_line_crossed_after_point(data, line, start_index, check_greater=True):
         cross = any(data[start_index + 1:] < line)
 
     return cross
+
+
+def calculate_statistics(testing_df):
+    total_support_breaks = testing_df['support_breaks'].sum()
+    true_support_breaks = testing_df['true_support_breaks'].sum()
+    false_support_breaks = testing_df['false_support_breaks'].sum()
+    total_resistance_breaks = testing_df['resistance_breaks'].sum()
+    true_resistance_breaks = testing_df['true_resistance_breaks'].sum()
+    false_resistance_breaks = testing_df['false_resistance_breaks'].sum()
+
+    support_accuracy = true_support_breaks / total_support_breaks if total_support_breaks > 0 else 0
+    resistance_accuracy = true_resistance_breaks / total_resistance_breaks if total_resistance_breaks > 0 else 0
+
+    total_tops = testing_df['tops'].dropna().apply(len).sum()
+    total_bottoms = testing_df['bottoms'].dropna().apply(len).sum()
+
+    avg_support_levels = testing_df['support_levels'].dropna().apply(lambda x: np.mean(x) if x else np.nan).mean()
+    avg_resistance_levels = testing_df['resistance_levels'].dropna().apply(lambda x: np.mean(x) if x else np.nan).mean()
+
+    max_support_levels = testing_df['support_levels'].dropna().apply(lambda x: np.max(x) if x else np.nan).max()
+    min_support_levels = testing_df['support_levels'].dropna().apply(lambda x: np.min(x) if x else np.nan).min()
+    max_resistance_levels = testing_df['resistance_levels'].dropna().apply(lambda x: np.max(x) if x else np.nan).max()
+    min_resistance_levels = testing_df['resistance_levels'].dropna().apply(lambda x: np.min(x) if x else np.nan).min()
+
+    false_support_break_rate = false_support_breaks / total_support_breaks if total_support_breaks > 0 else 0
+    false_resistance_break_rate = false_resistance_breaks / total_resistance_breaks if total_resistance_breaks > 0 else 0
+
+    return {
+        "total_support_breaks": total_support_breaks,
+        "true_support_breaks": true_support_breaks,
+        "false_support_breaks": false_support_breaks,
+        "support_accuracy": support_accuracy,
+        "total_resistance_breaks": total_resistance_breaks,
+        "true_resistance_breaks": true_resistance_breaks,
+        "false_resistance_breaks": false_resistance_breaks,
+        "resistance_accuracy": resistance_accuracy,
+        "total_tops": total_tops,
+        "total_bottoms": total_bottoms,
+        "avg_support_levels": avg_support_levels,
+        "avg_resistance_levels": avg_resistance_levels,
+        "max_support_levels": max_support_levels,
+        "min_support_levels": min_support_levels,
+        "max_resistance_levels": max_resistance_levels,
+        "min_resistance_levels": min_resistance_levels,
+        "false_support_break_rate": false_support_break_rate,
+        "false_resistance_break_rate": false_resistance_break_rate
+    }
 
 
 # Function to plot the window
@@ -177,10 +318,11 @@ ticker = st.selectbox("Select Ticker", [
 
 # Load data
 df = load_data(ticker)
+wf_df = df.copy()
 
 # User input for window length and order
 window_length = st.selectbox("Select Window Length", [252, 504])
-order = st.selectbox("Select Order", [1, 2, 3, 4, 5, 6, 7])
+order = st.selectbox("Select Order", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
 # Initialize session state
 if "start_index" not in st.session_state:
@@ -260,6 +402,72 @@ with col4:
     if st.button("Next Month"):
         update_plot_by_months(1)
 
-# Slider to set start index
-start_index = st.slider("Start Index", 0, len(df) - window_length, st.session_state.start_index)
-st.session_state.start_index = start_index
+# Convert pandas.Timestamp to datetime
+min_date = df.index.min().to_pydatetime()
+max_date = df.index.max().to_pydatetime()
+current_end_date = df.index[min(len(df) - 1, st.session_state.start_index + window_length - 1)].to_pydatetime()
+
+# Slider to set start index based on the end date of the window
+start_date = st.slider("Start Date", min_date, max_date, current_end_date)
+st.session_state.start_index = max(0, df.index.get_loc(pd.to_datetime(start_date)) - window_length + 1)
+
+# Input for breakout threshold
+threshold_days = st.number_input("Breakout Threshold (days)", min_value=1, value=5)
+threshold_percentage = st.number_input("Breakout Threshold (percentage)", min_value=0.001, max_value=1.0, value=0.01,
+                                       step=0.001, format="%.3f")
+
+# Ensure that threshold_days and threshold_percentage changes are captured
+if "threshold_days" not in st.session_state:
+    st.session_state.threshold_days = threshold_days
+if "threshold_percentage" not in st.session_state:
+    st.session_state.threshold_percentage = threshold_percentage
+
+threshold_days = st.session_state.threshold_days
+threshold_percentage = st.session_state.threshold_percentage
+
+# Button to run analysis
+if st.button("Run Analysis"):
+    if not invalidate_lines:
+        st.error("Please check 'Invalidate Crossed Lines' before running the analysis.")
+    else:
+        try:
+            tolerance = float(tolerance_input.replace(",", "."))
+            if tolerance < 0 or tolerance > 1:
+                st.error("Tolerance must be a number between 0 and 1.")
+            else:
+                testing_df = walk_forward_test(wf_df, window_size=window_length, order=order,
+                                               threshold_days=threshold_days,
+                                               threshold_percentage=threshold_percentage, tolerance=tolerance,
+                                               consecutive_only=consecutive_only, log_price=log_price,
+                                               invalidate_lines=invalidate_lines)
+
+                # Calculate statistics
+                stats = calculate_statistics(testing_df)
+
+                # Store statistics in session state
+                st.session_state.stats = stats
+
+                # Option to download testing_df
+                csv = testing_df.to_csv(index=True)
+                st.download_button(
+                    label="Download data as CSV",
+                    data=csv,
+                    file_name=f'{ticker.lower()}_results.csv',
+                    mime='text/csv',
+                )
+        except ValueError:
+            st.error("Invalid input for Tolerance. Please enter a number between 0 and 1.")
+
+# Display statistics if they are stored in session state
+if "stats" in st.session_state:
+    stats = st.session_state.stats
+    st.write(f"Support Break Accuracy: {stats['support_accuracy']:.2%}")
+    st.write(f"Resistance Break Accuracy: {stats['resistance_accuracy']:.2%}")
+    st.write(f"Average Support Level: {stats['avg_support_levels']:.2f}")
+    st.write(f"Average Resistance Level: {stats['avg_resistance_levels']:.2f}")
+    st.write(f"Maximum Support Level: {stats['max_support_levels']:.2f}")
+    st.write(f"Minimum Support Level: {stats['min_support_levels']:.2f}")
+    st.write(f"Maximum Resistance Level: {stats['max_resistance_levels']:.2f}")
+    st.write(f"Minimum Resistance Level: {stats['min_resistance_levels']:.2f}")
+    st.write(f"False Support Break Rate: {stats['false_support_break_rate']:.2%}")
+    st.write(f"False Resistance Break Rate: {stats['false_resistance_break_rate']:.2%}")
