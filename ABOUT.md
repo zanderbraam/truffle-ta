@@ -35,6 +35,8 @@ The app calculates several statistics based on the walk-forward analysis:
 
 - **Support Break Accuracy**: The ratio of true support breaks to total support breaks.
 - **Resistance Break Accuracy**: The ratio of true resistance breaks to total resistance breaks.
+- **Total Support Breaks**: The number of support breaks identified in the analysis.
+- **Total Resistance Breaks**: The number of resistance breaks identified in the analysis.
 - **Average Support Level**: The average value of identified support levels.
 - **Average Resistance Level**: The average value of identified resistance levels.
 - **Maximum Support Level**: The maximum value of identified support levels.

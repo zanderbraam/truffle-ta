@@ -463,6 +463,8 @@ if "stats" in st.session_state:
     stats = st.session_state.stats
     st.write(f"Support Break Accuracy: {stats['support_accuracy']:.2%}")
     st.write(f"Resistance Break Accuracy: {stats['resistance_accuracy']:.2%}")
+    st.write(f"Total Support Breaks: {stats['total_support_breaks']}")
+    st.write(f"Total Resistance Breaks: {stats['total_resistance_breaks']}")
     st.write(f"Average Support Level: {stats['avg_support_levels']:.2f}")
     st.write(f"Average Resistance Level: {stats['avg_resistance_levels']:.2f}")
     st.write(f"Maximum Support Level: {stats['max_support_levels']:.2f}")
