@@ -1,5 +1,5 @@
 # truffle-ta
-Streamlit App to Visualise TA Horizontal Support and Resistance Lines
+Streamlit App to Visualise TA Horizontal Support and Resistance Lines and Perform Walk-Forward Analysis.
 
 ## Usage
 
