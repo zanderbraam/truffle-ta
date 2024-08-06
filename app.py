@@ -242,8 +242,53 @@ def calculate_statistics(testing_df):
     }
 
 
+def directional_change(close, sigma):
+    up_zig = True  # Last extreme is a bottom. Next is a top.
+    tmp_max = close[0]
+    tmp_min = close[0]
+    tmp_max_i = 0
+    tmp_min_i = 0
+
+    tops = []
+    bottoms = []
+
+    for i in range(len(close)):
+        if up_zig:  # Last extreme is a bottom
+            if close[i] > tmp_max:
+                # New high, update
+                tmp_max = close[i]
+                tmp_max_i = i
+            elif close[i] < tmp_max - tmp_max * sigma:
+                # Price retraced by sigma %. Top confirmed, record it
+                top = [i, tmp_max_i, tmp_max]
+                tops.append(top)
+
+                # Setup for next bottom
+                up_zig = False
+                tmp_min = close[i]
+                tmp_min_i = i
+        else:  # Last extreme is a top
+            if close[i] < tmp_min:
+                # New low, update
+                tmp_min = close[i]
+                tmp_min_i = i
+            elif close[i] > tmp_min + tmp_min * sigma:
+                # Price retraced by sigma %. Bottom confirmed, record it
+                bottom = [i, tmp_min_i, tmp_min]
+                bottoms.append(bottom)
+
+                # Setup for next top
+                up_zig = True
+                tmp_max = close[i]
+                tmp_max_i = i
+
+    return tops, bottoms
+
+
 # Function to plot the window
-def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price, ema_toggle, ema_span, invalidate_lines):
+def plot_window(df, start, order, window_length, tolerance, consecutive_only, log_price, ema_toggle, ema_span,
+                invalidate_lines, show_directional_change=False, sigma=None):
+
     fig, ax = plt.subplots(figsize=(10, 5))
     window = df.iloc[start:start + window_length]
 
@@ -294,6 +339,15 @@ def plot_window(df, start, order, window_length, tolerance, consecutive_only, lo
         if log_price:
             ema = np.log(ema)
         ax.plot(idx, ema, label=f"EMA (span={ema_span})", linestyle='--')
+
+    # Plot directional change if toggle is enabled and sigma is valid
+    if show_directional_change and sigma is not None:
+        directional_tops, directional_bottoms = directional_change(data, sigma)
+        dc_points = sorted(directional_tops + directional_bottoms, key=lambda x: x[0])
+        if dc_points:
+            dc_indices = [point[1] for point in dc_points]
+            dc_prices = [point[2] for point in dc_points]
+            ax.plot(idx[dc_indices], dc_prices, color="black", label="Directional Change", linestyle="-")
 
     ax.set_title(f"{window_length}-Day Window of {'Log ' if log_price else ''}Closing Prices")
     ax.set_xlabel("Date")
@@ -437,6 +491,21 @@ if ema_toggle:
 # Toggle for invalidating crossed lines
 invalidate_lines = st.checkbox("Invalidate Crossed Lines", value=False)
 
+# Checkbox to toggle directional change plot
+show_directional_change = st.checkbox("Show Directional Change", value=False)
+
+# Input for sigma parameter if directional change is enabled
+sigma = None
+if show_directional_change:
+    sigma_input = st.text_input("Sigma (0 to 1)", "0.03")
+    try:
+        sigma = float(sigma_input)
+        if sigma < 0 or sigma > 1:
+            st.error("Sigma must be a number between 0 and 1.")
+            sigma = None
+    except ValueError:
+        st.error("Invalid input for Sigma. Please enter a number between 0 and 1.")
+
 # Validate tolerance input
 try:
     tolerance = float(tolerance_input.replace(",", "."))
@@ -445,7 +514,7 @@ try:
     else:
         # Plot the window
         plot_window(df, st.session_state.start_index, order, window_length, tolerance, consecutive_only, log_price,
-                    ema_toggle, ema_span, invalidate_lines)
+                    ema_toggle, ema_span, invalidate_lines, show_directional_change, sigma)
 except ValueError:
     st.error("Invalid input. Please enter a number between 0 and 1.")
 
