@@ -85,20 +85,26 @@ def rw_extremes(data, order):
 
 
 # Function to detect horizontal lines
-def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False):
+def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False, is_support=True):
     horizontal_lines = []
     if consecutive_only:
         for i in range(len(points) - 2):
             if (abs(points[i][2] - points[i + 1][2]) / points[i][2] < tolerance and
                     abs(points[i][2] - points[i + 2][2]) / points[i][2] < tolerance):
-                horizontal_lines.append(points[i + 2][2])
+                if is_support:
+                    horizontal_lines.append(min(points[i][2], points[i + 1][2], points[i + 2][2]))
+                else:
+                    horizontal_lines.append(max(points[i][2], points[i + 1][2], points[i + 2][2]))
     else:
         for i in range(len(points)):
             for j in range(i + 1, len(points)):
                 for k in range(j + 1, len(points)):
                     if (abs(points[i][2] - points[j][2]) / points[i][2] < tolerance and
                             abs(points[i][2] - points[k][2]) / points[i][2] < tolerance):
-                        horizontal_lines.append(points[k][2])
+                        if is_support:
+                            horizontal_lines.append(min(points[i][2], points[j][2], points[k][2]))
+                        else:
+                            horizontal_lines.append(max(points[i][2], points[j][2], points[k][2]))
     return horizontal_lines
 
 
@@ -136,8 +142,8 @@ def walk_forward_test(prices, window_size=252, order=5, threshold_days=5, thresh
         tops_values = [float(top[2]) for top in tops]
         bottoms_values = [float(bottom[2]) for bottom in bottoms]
 
-        top_levels = detect_horizontal_lines(tops, tolerance, consecutive_only)
-        bottom_levels = detect_horizontal_lines(bottoms, tolerance, consecutive_only)
+        top_levels = detect_horizontal_lines(tops, tolerance, consecutive_only, is_support=False)
+        bottom_levels = detect_horizontal_lines(bottoms, tolerance, consecutive_only, is_support=True)
 
         top_level_values = [float(top) for top in top_levels]
         bottom_level_values = [float(bottom) for bottom in bottom_levels]
@@ -252,8 +258,8 @@ def plot_window(df, start, order, window_length, tolerance, consecutive_only, lo
     tops, bottoms = rw_extremes(data, order)
 
     # Detect horizontal lines for triple tops and bottoms
-    triple_tops = detect_horizontal_lines(tops, tolerance, consecutive_only)
-    triple_bottoms = detect_horizontal_lines(bottoms, tolerance, consecutive_only)
+    triple_tops = detect_horizontal_lines(tops, tolerance, consecutive_only, is_support=False)
+    triple_bottoms = detect_horizontal_lines(bottoms, tolerance, consecutive_only, is_support=True)
 
     # Plot the closing prices
     ax.plot(idx, data, label="Close (Log)" if log_price else "Close")
@@ -322,7 +328,7 @@ wf_df = df.copy()
 
 # User input for window length and order
 window_length = st.selectbox("Select Window Length", [252, 504])
-order = st.selectbox("Select Order", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+order = st.selectbox("Select Order", [4, 5, 6, 7, 8, 9, 10])
 
 # Initialize session state
 if "start_index" not in st.session_state:
@@ -435,16 +441,19 @@ if st.button("Run Analysis"):
             if tolerance < 0 or tolerance > 1:
                 st.error("Tolerance must be a number between 0 and 1.")
             else:
-                testing_df = walk_forward_test(wf_df, window_size=window_length, order=order,
+                testing_df = walk_forward_test(wf_df, window_size=window_length,
+                                               order=order,
                                                threshold_days=threshold_days,
-                                               threshold_percentage=threshold_percentage, tolerance=tolerance,
-                                               consecutive_only=consecutive_only, log_price=log_price,
+                                               threshold_percentage=threshold_percentage,
+                                               tolerance=tolerance,
+                                               consecutive_only=consecutive_only,
+                                               log_price=log_price,
                                                invalidate_lines=invalidate_lines)
 
                 # Calculate statistics
                 stats = calculate_statistics(testing_df)
 
-                # Store statistics in session state
+                # Store statistics and break points in session state
                 st.session_state.stats = stats
 
                 # Option to download testing_df

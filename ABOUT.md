@@ -20,7 +20,7 @@ The app identifies local tops and bottoms in the stock price data using a rollin
 
 - **Ticker**: The stock ticker symbol to analyze.
 - **Window Length**: The number of days in the window of data to analyze. Options are 252 days (approximately one trading year) and 504 days (approximately two trading years).
-- **Order**: The number of surrounding days to consider when identifying local tops and bottoms. Options range from 1 to 7.
+- **Order**: The number of surrounding days to consider when identifying local tops and bottoms. Options range from 4 to 10.
 - **Tolerance**: A value between 0 and 1 that determines the acceptable difference between the prices to consider them as forming a horizontal line.
 - **Consecutive Only**: When set to True, horizontal lines are only drawn if three consecutive tops or bottoms form a horizontal line. When False, lines are drawn if any three tops or bottoms in the window form a horizontal line.
 - **Log Price**: A boolean parameter that, when set to True, uses the logarithm of the closing prices instead of the raw closing prices for all calculations and plots.
