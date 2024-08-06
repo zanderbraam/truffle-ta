@@ -309,21 +309,98 @@ st.title("Stock Price Technical Analysis App")
 about_content = read_about()
 st.markdown(about_content)
 
-# Dropdown to select ticker
-ticker = st.selectbox("Select Ticker", [
-    "URE", "DBA", "VNQ", "EWY", "UNG", "USO", "THD", "IBB", "SPY", "EWJ",
-    "XLI", "XLP", "TUR", "GDX", "LMZSDS03", "XAUUSD", "ARKK", "VWO",
-    "LMAHDS03", "EWO", "JJC", "EWW", "EWQ", "XW1", "EWC", "IWM", "DBC",
-    "XLF", "SOXX", "EWA", "XLE", "EZA", "XLK", "CPER", "XPDUSD",
-    "USGG10YR", "BHP_AU", "GSG", "BHP_LN", "EWZ", "EWL", "EWT", "EWM",
-    "SCO1", "GLD", "EWP", "MXEF", "XRT", "700_HK", "EEM_US", "EWK",
-    "DBB", "XPTUSD", "XLV", "FXI", "XLB", "IDXX", "QQQ", "EWN", "EWU",
-    "XME", "VGK", "XO1", "SLV", "HYG", "HG1", "EWD", "XLU", "XLY",
-    "AAPL_US", "EWS", "CO1", "EWG", "EWI"
-])
+# List of tickers with full names
+tickers_with_names = [
+    ("URE", "ProShares Ultra Real Estate"),
+    ("DBA", "Invesco DB Agriculture Fund"),
+    ("VNQ", "Vanguard Real Estate ETF"),
+    ("EWY", "iShares MSCI South Korea ETF"),
+    ("UNG", "United States Natural Gas Fund"),
+    ("USO", "United States Oil Fund"),
+    ("THD", "iShares MSCI Thailand ETF"),
+    ("IBB", "iShares Nasdaq Biotechnology ETF"),
+    ("SPY", "SPDR S&P 500 ETF Trust"),
+    ("EWJ", "iShares MSCI Japan ETF"),
+    ("XLI", "Industrial Select Sector SPDR Fund"),
+    ("XLP", "Consumer Staples Select Sector SPDR Fund"),
+    ("TUR", "iShares MSCI Turkey ETF"),
+    ("GDX", "VanEck Vectors Gold Miners ETF"),
+    ("LMZSDS03", "LME ZINC 3MO ($)"),
+    ("XAUUSD", "Gold/US Dollar"),
+    ("ARKK", "ARK Innovation ETF"),
+    ("VWO", "Vanguard FTSE Emerging Markets ETF"),
+    ("LMAHDS03", "LME ALUMINUM 3MO ($)"),
+    ("EWO", "iShares MSCI Austria ETF"),
+    ("JJC", "iPath Series B Bloomberg Copper Subindex Total Return ETN"),
+    ("EWW", "iShares MSCI Mexico ETF"),
+    ("EWQ", "iShares MSCI France ETF"),
+    ("XW1", "Wheat Mini Futures"),
+    ("EWC", "iShares MSCI Canada ETF"),
+    ("IWM", "iShares Russell 2000 ETF"),
+    ("DBC", "Invesco DB Commodity Index Tracking Fund"),
+    ("XLF", "Financial Select Sector SPDR Fund"),
+    ("SOXX", "iShares PHLX Semiconductor ETF"),
+    ("EWA", "iShares MSCI Australia ETF"),
+    ("XLE", "Energy Select Sector SPDR Fund"),
+    ("EZA", "iShares MSCI South Africa ETF"),
+    ("XLK", "Technology Select Sector SPDR Fund"),
+    ("CPER", "United States Copper Index Fund"),
+    ("XPDUSD", "Palladium/US Dollar"),
+    ("USGG10YR", "U.S. 10 Year Treasury"),
+    ("BHP_AU", "BHP Group Limited (Australia)"),
+    ("GSG", "iShares S&P GSCI Commodity-Indexed Trust"),
+    ("BHP_LN", "BHP Group Plc (UK)"),
+    ("EWZ", "iShares MSCI Brazil ETF"),
+    ("EWL", "iShares MSCI Switzerland ETF"),
+    ("EWT", "iShares MSCI Taiwan ETF"),
+    ("EWM", "iShares MSCI Malaysia ETF"),
+    ("SCO1", "ProShares UltraShort Bloomberg Crude Oil"),
+    ("GLD", "SPDR Gold Shares"),
+    ("EWP", "iShares MSCI Spain ETF"),
+    ("MXEF", "iShares MSCI Emerging Markets ETF"),
+    ("XRT", "SPDR S&P Retail ETF"),
+    ("700_HK", "Tencent Holdings Ltd (Hong Kong)"),
+    ("EEM_US", "iShares MSCI Emerging Markets ETF (US)"),
+    ("EWK", "iShares MSCI Belgium ETF"),
+    ("DBB", "Invesco DB Base Metals Fund"),
+    ("XPTUSD", "Platinum/US Dollar"),
+    ("XLV", "Health Care Select Sector SPDR Fund"),
+    ("FXI", "iShares China Large-Cap ETF"),
+    ("XLB", "Materials Select Sector SPDR Fund"),
+    ("IDXX", "IDEXX Laboratories, Inc."),
+    ("QQQ", "Invesco QQQ Trust"),
+    ("EWN", "iShares MSCI Netherlands ETF"),
+    ("EWU", "iShares MSCI United Kingdom ETF"),
+    ("XME", "SPDR S&P Metals & Mining ETF"),
+    ("VGK", "Vanguard FTSE Europe ETF"),
+    ("XO1", "Brent Crude Oil"),
+    ("SLV", "iShares Silver Trust"),
+    ("HYG", "iShares iBoxx $ High Yield Corporate Bond ETF"),
+    ("HG1", "Copper Futures"),
+    ("EWD", "iShares MSCI Sweden ETF"),
+    ("XLU", "Utilities Select Sector SPDR Fund"),
+    ("XLY", "Consumer Discretionary Select Sector SPDR Fund"),
+    ("AAPL_US", "Apple Inc. (US)"),
+    ("EWS", "iShares MSCI Singapore ETF"),
+    ("CO1", "CO1"),
+    ("EWG", "iShares MSCI Germany ETF"),
+    ("EWI", "iShares MSCI Italy ETF"),
+]
+
+# Sort tickers with full names alphabetically
+tickers_with_names = sorted(tickers_with_names, key=lambda x: x[0])
+
+# Create a dropdown with tickers and full names
+ticker = st.selectbox(
+    "Select Ticker",
+    options=[f"{ticker} - {name}" for ticker, name in tickers_with_names]
+)
+
+# Extract the selected ticker symbol
+selected_ticker = ticker.split(" - ")[0]
 
 # Load data
-df = load_data(ticker)
+df = load_data(selected_ticker)
 wf_df = df.copy()
 
 # User input for window length and order
