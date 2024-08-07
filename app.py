@@ -507,6 +507,7 @@ if show_directional_change:
         st.error("Invalid input for Sigma. Please enter a number between 0 and 1.")
 
 # Validate tolerance input
+tolerance = None
 try:
     tolerance = float(tolerance_input.replace(",", "."))
     if tolerance < 0 or tolerance > 1:
@@ -602,6 +603,20 @@ if st.button("Run Analysis"):
                 # Store statistics and break points in session state
                 st.session_state.stats = stats
 
+                # Get all breakouts with their indices
+                breakout_points = []
+                for index, row in testing_df.iterrows():
+                    if row['true_support_breaks']:
+                        breakout_points.append((index, 'TRUE SUPPORT'))
+                    elif row['false_support_breaks']:
+                        breakout_points.append((index, 'FALSE SUPPORT'))
+                    elif row['true_resistance_breaks']:
+                        breakout_points.append((index, 'TRUE RESISTANCE'))
+                    elif row['false_resistance_breaks']:
+                        breakout_points.append((index, 'FALSE RESISTANCE'))
+
+                st.session_state.breakout_points = breakout_points
+
                 # Option to download testing_df
                 csv = testing_df.to_csv(index=True)
                 st.download_button(
@@ -613,6 +628,17 @@ if st.button("Run Analysis"):
         except ValueError:
             st.error("Invalid input for Tolerance. Please enter a number between 0 and 1.")
 
+# Display breakout points dropdown if they are stored in session state
+if "breakout_points" in st.session_state:
+    breakout_points = st.session_state.breakout_points
+    selected_breakout = st.selectbox("Select Breakout Point", [f"{index} - {label}" for index, label in breakout_points])
+
+    # Extract the selected index and add a button
+    if selected_breakout:
+        selected_index = pd.to_datetime(selected_breakout.split(" - ")[0])
+        if st.button("Go to Breakout"):
+            st.session_state.start_index = max(0, df.index.get_loc(selected_index) - window_length + 1)
+
 # Display statistics if they are stored in session state
 if "stats" in st.session_state:
     stats = st.session_state.stats
@@ -620,11 +646,11 @@ if "stats" in st.session_state:
     st.write(f"Resistance Break Accuracy: {stats['resistance_accuracy']:.2%}")
     st.write(f"Total Support Breaks: {stats['total_support_breaks']}")
     st.write(f"Total Resistance Breaks: {stats['total_resistance_breaks']}")
-    st.write(f"Average Support Level: {stats['avg_support_levels']:.2f}")
-    st.write(f"Average Resistance Level: {stats['avg_resistance_levels']:.2f}")
-    st.write(f"Maximum Support Level: {stats['max_support_levels']:.2f}")
-    st.write(f"Minimum Support Level: {stats['min_support_levels']:.2f}")
-    st.write(f"Maximum Resistance Level: {stats['max_resistance_levels']:.2f}")
-    st.write(f"Minimum Resistance Level: {stats['min_resistance_levels']:.2f}")
-    st.write(f"False Support Break Rate: {stats['false_support_break_rate']:.2%}")
-    st.write(f"False Resistance Break Rate: {stats['false_resistance_break_rate']:.2%}")
+    # st.write(f"Average Support Level: {stats['avg_support_levels']:.2f}")
+    # st.write(f"Average Resistance Level: {stats['avg_resistance_levels']:.2f}")
+    # st.write(f"Maximum Support Level: {stats['max_support_levels']:.2f}")
+    # st.write(f"Minimum Support Level: {stats['min_support_levels']:.2f}")
+    # st.write(f"Maximum Resistance Level: {stats['max_resistance_levels']:.2f}")
+    # st.write(f"Minimum Resistance Level: {stats['min_resistance_levels']:.2f}")
+    # st.write(f"False Support Break Rate: {stats['false_support_break_rate']:.2%}")
+    # st.write(f"False Resistance Break Rate: {stats['false_resistance_break_rate']:.2%}")
