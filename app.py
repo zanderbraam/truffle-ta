@@ -108,20 +108,20 @@ def detect_horizontal_lines(points, tolerance=0.005, consecutive_only=False, is_
     return horizontal_lines
 
 
-def is_true_breakout(prices, level, index, threshold_days=5, threshold_percentage=0.01, is_top=True):
+def is_true_breakout(prices, level, index, threshold_days=5, additional_percentage=0.0, is_top=True):
     future_index = index + threshold_days
     if future_index >= len(prices):
         return False
 
     future_price = prices.iloc[future_index]
     if is_top:
-        return future_price > level * (1 + threshold_percentage)
+        return future_price > level * (1 + additional_percentage)
     else:
-        return future_price < level * (1 - threshold_percentage)
+        return future_price < level * (1 - additional_percentage)
 
 
 def walk_forward_test(prices, window_size=252, order=5, threshold_days=5, threshold_percentage=0.01,
-                      tolerance=0.005, consecutive_only=False, log_price=False, invalidate_lines=False):
+                      tolerance=0.005, consecutive_only=False, log_price=False, invalidate_lines=False, additional_percentage=0.0):
 
     close_prices = prices['close'].to_numpy()
     if log_price:
@@ -159,9 +159,9 @@ def walk_forward_test(prices, window_size=252, order=5, threshold_days=5, thresh
         # Check for breaks and update columns
         current_price = close_prices[i + window_size - 1]
         for level in top_levels:
-            if current_price > level and level not in invalidated_top_levels:
+            if current_price > level * (1 + threshold_percentage) and level not in invalidated_top_levels:
                 is_true = is_true_breakout(prices['close'], level, i + window_size - 1, threshold_days,
-                                           threshold_percentage, is_top=True)
+                                           additional_percentage, is_top=True)
                 testing_df.at[prices.index[i + window_size - 1], 'resistance_breaks'] = True
                 if is_true:
                     testing_df.at[prices.index[i + window_size - 1], 'true_resistance_breaks'] = True
@@ -171,9 +171,9 @@ def walk_forward_test(prices, window_size=252, order=5, threshold_days=5, thresh
                     invalidated_top_levels.add(level)
 
         for level in bottom_levels:
-            if current_price < level and level not in invalidated_bottom_levels:
+            if current_price < level * (1 - threshold_percentage) and level not in invalidated_bottom_levels:
                 is_true = is_true_breakout(prices['close'], level, i + window_size - 1, threshold_days,
-                                           threshold_percentage, is_top=False)
+                                           additional_percentage, is_top=False)
                 testing_df.at[prices.index[i + window_size - 1], 'support_breaks'] = True
                 if is_true:
                     testing_df.at[prices.index[i + window_size - 1], 'true_support_breaks'] = True
@@ -506,6 +506,91 @@ if show_directional_change:
     except ValueError:
         st.error("Invalid input for Sigma. Please enter a number between 0 and 1.")
 
+# Input for breakout threshold
+threshold_days = st.number_input("Breakout Threshold (days)", min_value=1, value=5)
+threshold_percentage = st.number_input("Breakout Threshold (percentage)", min_value=0.001, max_value=1.0, value=0.01,
+                                       step=0.001, format="%.3f")
+
+# Checkbox for additional percentage rise/drop past breakout point
+additional_percentage_check = st.checkbox("Specify additional % rise/drop past breakout point", value=False)
+additional_percentage = 0.0
+if additional_percentage_check:
+    additional_percentage_input = st.text_input("Additional Percentage (0 to 1)", "0.05")
+    try:
+        additional_percentage = float(additional_percentage_input)
+        if additional_percentage < 0 or additional_percentage > 1:
+            st.error("Additional Percentage must be a number between 0 and 1.")
+            additional_percentage = None
+    except ValueError:
+        st.error("Invalid input for Additional Percentage. Please enter a number between 0 and 1.")
+
+# Initialize session state
+if "parameters" not in st.session_state:
+    st.session_state.parameters = {
+        "ticker": selected_ticker,
+        "window_length": window_length,
+        "order": order,
+        "tolerance": tolerance_input,
+        "consecutive_only": consecutive_only,
+        "log_price": log_price,
+        "ema_toggle": ema_toggle,
+        "ema_span": ema_span,
+        "invalidate_lines": invalidate_lines,
+        "show_directional_change": show_directional_change,
+        "sigma": sigma,
+        "threshold_days": threshold_days,
+        "threshold_percentage": threshold_percentage,
+        "additional_percentage": additional_percentage,
+    }
+
+
+# Function to check if any parameter has changed
+def parameters_changed():
+    return (
+        st.session_state.parameters["ticker"] != selected_ticker or
+        st.session_state.parameters["window_length"] != window_length or
+        st.session_state.parameters["order"] != order or
+        st.session_state.parameters["tolerance"] != tolerance_input or
+        st.session_state.parameters["consecutive_only"] != consecutive_only or
+        st.session_state.parameters["log_price"] != log_price or
+        # st.session_state.parameters["ema_toggle"] != ema_toggle or
+        # st.session_state.parameters["ema_span"] != ema_span or
+        st.session_state.parameters["invalidate_lines"] != invalidate_lines or
+        # st.session_state.parameters["show_directional_change"] != show_directional_change or
+        # st.session_state.parameters["sigma"] != sigma or
+        st.session_state.parameters["threshold_days"] != threshold_days or
+        st.session_state.parameters["threshold_percentage"] != threshold_percentage or
+        st.session_state.parameters["additional_percentage"] != additional_percentage
+    )
+
+
+# Reinitialize session state if parameters changed
+if parameters_changed():
+    st.session_state.parameters = {
+        "ticker": selected_ticker,
+        "window_length": window_length,
+        "order": order,
+        "tolerance": tolerance_input,
+        "consecutive_only": consecutive_only,
+        "log_price": log_price,
+        "ema_toggle": ema_toggle,
+        "ema_span": ema_span,
+        "invalidate_lines": invalidate_lines,
+        "show_directional_change": show_directional_change,
+        "sigma": sigma,
+        "threshold_days": threshold_days,
+        "threshold_percentage": threshold_percentage,
+        "additional_percentage": additional_percentage,
+    }
+    if "stats" in st.session_state:
+        del st.session_state["stats"]
+    if "csv_data" in st.session_state:
+        del st.session_state["csv_data"]
+    if "breakout_points" in st.session_state:
+        del st.session_state["breakout_points"]
+    if "testing_df" in st.session_state:
+        del st.session_state["testing_df"]
+
 # Validate tolerance input
 tolerance = None
 try:
@@ -564,20 +649,6 @@ current_end_date = df.index[min(len(df) - 1, st.session_state.start_index + wind
 start_date = st.slider("Start Date", min_date, max_date, current_end_date)
 st.session_state.start_index = max(0, df.index.get_loc(pd.to_datetime(start_date)) - window_length + 1)
 
-# Input for breakout threshold
-threshold_days = st.number_input("Breakout Threshold (days)", min_value=1, value=5)
-threshold_percentage = st.number_input("Breakout Threshold (percentage)", min_value=0.001, max_value=1.0, value=0.01,
-                                       step=0.001, format="%.3f")
-
-# Ensure that threshold_days and threshold_percentage changes are captured
-if "threshold_days" not in st.session_state:
-    st.session_state.threshold_days = threshold_days
-if "threshold_percentage" not in st.session_state:
-    st.session_state.threshold_percentage = threshold_percentage
-
-threshold_days = st.session_state.threshold_days
-threshold_percentage = st.session_state.threshold_percentage
-
 # Button to run analysis
 if st.button("Run Analysis"):
     if not invalidate_lines:
@@ -595,13 +666,15 @@ if st.button("Run Analysis"):
                                                tolerance=tolerance,
                                                consecutive_only=consecutive_only,
                                                log_price=log_price,
-                                               invalidate_lines=invalidate_lines)
+                                               invalidate_lines=invalidate_lines,
+                                               additional_percentage=additional_percentage)
 
                 # Calculate statistics
                 stats = calculate_statistics(testing_df)
 
                 # Store statistics and break points in session state
                 st.session_state.stats = stats
+                st.session_state.testing_df = testing_df
 
                 # Get all breakouts with their indices
                 breakout_points = []
@@ -617,14 +690,10 @@ if st.button("Run Analysis"):
 
                 st.session_state.breakout_points = breakout_points
 
-                # Option to download testing_df
+                # Store CSV data in session state
                 csv = testing_df.to_csv(index=True)
-                st.download_button(
-                    label="Download data as CSV",
-                    data=csv,
-                    file_name=f'{ticker.lower()}_results.csv',
-                    mime='text/csv',
-                )
+                st.session_state.csv_data = csv
+
         except ValueError:
             st.error("Invalid input for Tolerance. Please enter a number between 0 and 1.")
 
@@ -654,3 +723,12 @@ if "stats" in st.session_state:
     # st.write(f"Minimum Resistance Level: {stats['min_resistance_levels']:.2f}")
     # st.write(f"False Support Break Rate: {stats['false_support_break_rate']:.2%}")
     # st.write(f"False Resistance Break Rate: {stats['false_resistance_break_rate']:.2%}")
+
+# Display the Download CSV button if CSV data is stored in session state
+if "csv_data" in st.session_state:
+    st.download_button(
+        label="Download data as CSV",
+        data=st.session_state.csv_data,
+        file_name=f'{ticker.lower()}_results.csv',
+        mime='text/csv',
+    )
